@@ -1,14 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-
-	"github.com/joho/godotenv"
 )
 
 type PyqEntry struct {
@@ -38,26 +35,20 @@ const (
 	model     = "nomic-embed-text"
 )
 
+var Pyqs []PyqEntry
+var PyqEmbeds []PyqEmbed
+
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("No .env file found, relying on system environment variables")
-	}
 	data, err := os.ReadFile("pyq_os.json")
 	if err != nil {
 		fmt.Println(err)
 		panic("error in reading pyq_os.json")
 	}
-	var Pyqs []PyqEntry
-	var PyqEmbeds []PyqEmbed
+
 	err = json.Unmarshal(data, &Pyqs)
 	if err != nil {
 		log.Fatalf("Failed to parse JSON: %v", err)
 	}
-	//fmt.Println(len(Pyqs))
-	//for _, pyq := range Pyqs {
-	//	fmt.Println(pyq, '\n')
-	//}
 	input := make([]string, len(Pyqs))
 
 	for i, pyq := range Pyqs {
@@ -82,29 +73,9 @@ func main() {
 	//}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/search", searchHandler)
-}
-func embed(texts []string) ([][]float64, error) {
-	body, err := json.Marshal(embedRequest{Model: model, Input: texts})
+
+	err = http.ListenAndServe(":8080", mux)
 	if err != nil {
-		return nil, err
+		return
 	}
-
-	resp, err := http.Post(ollamaURL, "application/json", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("is Ollama running? %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ollama returned status %d", resp.StatusCode)
-	}
-
-	var out embedResponse
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return nil, err
-	}
-	return out.Embeddings, nil
-}
-func searchHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Hello World!"))
 }
